@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>出席カード</title>
+<style>
+  :root { --line: #d0d0d0; --muted: #666; --accent: #1f5fbf; --bad: #b3261e; --ok: #1e7a35; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Hiragino Kaku Gothic ProN", "Harano Aji Gothic", "Yu Gothic", sans-serif;
+         color: #222; background: #f5f5f3; }
+  header { background: #fff; border-bottom: 1px solid var(--line); padding: 12px 24px; display: flex;
+           align-items: baseline; gap: 24px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  nav button { background: none; border: none; font: inherit; padding: 6px 10px; cursor: pointer; color: var(--muted);
+               border-bottom: 2px solid transparent; }
+  nav button.active { color: #000; border-bottom-color: var(--accent); }
+  #keystatus { margin-left: auto; font-size: 13px; }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px 24px 60px; }
+  section.tab { display: none; }
+  section.tab.active { display: block; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px 20px; margin-bottom: 16px; }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  .row { display: flex; gap: 12px 20px; flex-wrap: wrap; align-items: end; margin-bottom: 10px; }
+  label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 3px; }
+  label.inline { flex-direction: row; align-items: center; gap: 6px; color: #222; font-size: 14px; }
+  input, select, button { font: inherit; font-size: 14px; }
+  input[type=text], input[type=number], input[type=date], select { padding: 5px 7px; border: 1px solid #bbb; border-radius: 4px; }
+  input[type=number] { width: 90px; }
+  input.wide { width: 100%; }
+  button.btn { padding: 6px 14px; border: 1px solid #bbb; border-radius: 4px; background: #fff; cursor: pointer; }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.btn:disabled { opacity: .45; cursor: default; }
+  .note { font-size: 12px; color: var(--muted); margin: 6px 0 0; line-height: 1.6; }
+  .msg { font-size: 13px; margin-top: 8px; min-height: 1em; white-space: pre-wrap; }
+  .msg.bad, .bad { color: var(--bad); }
+  .msg.ok, .ok { color: var(--ok); }
+  table.list { border-collapse: collapse; font-size: 13px; width: 100%; }
+  table.list th, table.list td { border-bottom: 1px solid #eee; padding: 4px 8px; text-align: left; white-space: nowrap; }
+  table.list th { background: #fafafa; position: sticky; top: 0; }
+  #dectable td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+  .scroll { max-height: 420px; overflow: auto; border: 1px solid #eee; }
+  .hidden { display: none !important; }
+
+  /* ---------- 印刷用カード（A4 縦，91×55mm を 2列×5段，切断ガイド線つき） ---------- */
+  #sheets { margin-top: 16px; }
+  .sheet { width: 210mm; height: 297mm; position: relative; background: #fff; overflow: hidden;
+           margin: 0 auto 12px; box-shadow: 0 1px 4px rgba(0,0,0,.2);
+           font-family: "Harano Aji Gothic", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; }
+  .guide-v { position: absolute; top: 0; height: 297mm; width: 0; border-left: 0.3pt dashed #969696; }
+  .guide-h { position: absolute; left: 0; width: 210mm; height: 0; border-top: 0.3pt dashed #969696; }
+  .card { position: absolute; width: 91mm; height: 55mm; padding: 6mm; display: flex; flex-direction: column;
+          font-size: 11pt; line-height: 1.35; }
+  .card .title { margin: 0; }
+  .card .body { display: flex; gap: 4mm; align-items: center; margin-top: 3mm; }
+  .card .qr { width: 26mm; height: 26mm; flex: none; }
+  .card .side { min-width: 0; }
+  .card .course { font-size: 9pt; }
+  .card .big { font-size: 14pt; font-weight: bold; }
+  .card .codelabel { font-size: 7pt; margin-top: 1mm; }
+  .card .code { font-size: 8pt; font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; white-space: nowrap; }
+  .card .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; }
+  .card .foot .notice { font-size: 8pt; }
+
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    header, main > :not(#tab-cards), #tab-cards > :not(#sheets), .no-print { display: none !important; }
+    main { padding: 0; max-width: none; }
+    #tab-cards { display: block !important; }
+    #sheets { margin: 0; }
+    .sheet { margin: 0; box-shadow: none; break-after: page; }
+    .sheet:last-child { break-after: auto; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>出席カード</h1>
+  <nav>
+    <button data-tab="setup" class="active">準備</button>
+    <button data-tab="cards">カード作成・印刷</button>
+    <button data-tab="decode">回答のデコード</button>
+    <button data-tab="check">単発の確認</button>
+  </nav>
+  <span id="keystatus" class="bad">秘密鍵：未読み込み</span>
+</header>
+
+<main>
+<!-- ================= 準備 ================= -->
+<section class="tab active" id="tab-setup">
+  <div class="panel">
+    <h2>秘密鍵（secret.key）</h2>
+    <div class="row">
+      <label>既存の鍵を読み込む<input type="file" id="keyfile"></label>
+      <button class="btn" id="keygen">新しい鍵を作成して保存</button>
+      <label class="inline"><input type="checkbox" id="keyremember">このブラウザに記憶する</label>
+      <button class="btn" id="keyforget">記憶を消す</button>
+    </div>
+    <p class="note">
+      Python 版（attendance_code.py）と同じ secret.key をそのまま使えます。鍵はこのページの中だけで使われ，どこにも送信されません。<br>
+      「新しい鍵を作成」は最初の1回だけ。<b>作った鍵は必ずバックアップし，学生に渡さないこと</b>（なくすと配布済みカードがデコードできなくなります）。<br>
+      「記憶する」をオンにすると，次回からは読み込み不要になります（自分専用の PC でのみ使ってください）。
+    </p>
+    <div class="msg" id="keymsg"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Googleフォームの事前入力URL</h2>
+    <div class="row"><label style="flex:1">末尾が「entry.数字=」で終わるURL<input type="text" class="wide" id="formurl"></label></div>
+    <p class="note">フォーム編集画面の「⋮」→「事前入力したURLを取得」で，コード欄に仮の値（XXXX など）を入れて取得したURLから，末尾の仮の値を消したものです。このブラウザに保存されます。</p>
+  </div>
+
+  <div class="panel">
+    <h2>授業IDの対応表（courses.csv）</h2>
+    <div class="row">
+      <label>授業名<input type="text" id="cname" placeholder="例：ミクロ経済学 出席" style="width:260px"></label>
+      <label>授業ID（空欄で自動）<input type="number" id="cid" min="0" max="255"></label>
+      <button class="btn primary" id="cadd">登録</button>
+    </div>
+    <div class="row">
+      <label>courses.csv を読み込む<input type="file" id="coursefile" accept=".csv,text/csv"></label>
+      <button class="btn" id="coursesave">courses.csv として保存</button>
+    </div>
+    <table class="list" id="coursetable"><thead><tr><th>ID</th><th>授業名</th><th></th></tr></thead><tbody></tbody></table>
+    <p class="note">Python 版の courses.csv と同じ形式です。ここでの変更はこのブラウザに保存されます。Python 版でも使うときは「保存」で書き出してください。カードを配ったあとに ID と授業名の対応を変えないでください。</p>
+    <div class="msg" id="coursemsg"></div>
+  </div>
+</section>
+
+<!-- ================= カード作成・印刷 ================= -->
+<section class="tab" id="tab-cards">
+  <div class="panel">
+    <h2>カードを作る</h2>
+    <div class="row">
+      <label class="inline"><input type="radio" name="kind" value="dated" checked>出席カード（授業日つき）</label>
+      <label class="inline"><input type="radio" name="kind" value="nodate">日付なしカード（発言カードなど）</label>
+    </div>
+    <div class="row">
+      <label class="dated-only">授業日（初回）<input type="date" id="gdate"></label>
+      <label class="dated-only">回数<input type="number" id="grepeat" value="1" min="1"></label>
+      <label class="dated-only">間隔（日）<input type="number" id="ginterval" value="7" min="1"></label>
+      <label>1回あたりの枚数<input type="number" id="gcount" value="100" min="1"></label>
+      <label>開始番号<input type="number" id="gstart" value="1" min="0"></label>
+    </div>
+    <div class="row">
+      <label>授業<select id="gcourse"></select></label>
+      <label id="gcourseidwrap" class="hidden">授業ID（0〜255）<input type="number" id="gcourseid" value="0" min="0" max="255"></label>
+      <label>カードの名前<input type="text" id="gtitle" value="出席カード"></label>
+      <label>注意書き<input type="text" id="gnotice" value="※当日のみ有効・1枚1回限り" style="width:220px"></label>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="gen" disabled>作成</button>
+    </div>
+    <p class="note">回数を2以上にすると，初回から「間隔」日ごとの授業日の分をまとめて作ります（各回の番号は開始番号から振り直し）。日付なしカードを追加で刷るときは，開始番号を続きにしてください。</p>
+    <div class="msg" id="genmsg"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Python 版で作ったカードCSVを印刷する</h2>
+    <div class="row"><label>cards_*.csv を読み込む<input type="file" id="cardsfile" accept=".csv,text/csv"></label></div>
+  </div>
+
+  <div class="panel hidden" id="printpanel">
+    <h2>印刷</h2>
+    <div class="row">
+      <button class="btn primary" id="print">印刷する</button>
+      <button class="btn" id="savecards">カードCSVを保存</button>
+    </div>
+    <p class="note">印刷ダイアログでは <b>用紙 A4・余白「なし」・倍率 100%（「用紙に合わせる」をオフ）</b> にしてください。ずれると切断ガイド線とカードの位置が合いません。<br>
+    カードCSVの保存は記録用です（デコードには不要。Python 版の typst でも印刷できます）。</p>
+    <div class="msg" id="printmsg"></div>
+  </div>
+
+  <div id="sheets"></div>
+</section>
+
+<!-- ================= デコード ================= -->
+<section class="tab" id="tab-decode">
+  <div class="panel">
+    <h2>フォーム回答CSVのデコード</h2>
+    <div class="row">
+      <label>Googleフォームの回答CSV<input type="file" id="respfile" accept=".csv,text/csv"></label>
+      <label>コードの列<select id="respcol"><option value="">自動検出</option></select></label>
+      <button class="btn primary" id="decode" disabled>デコード</button>
+      <button class="btn" id="savedecoded" disabled>結果をCSVで保存</button>
+    </div>
+    <p class="note">結果は元の列の右に「日付・カードNo・授業ID・授業名・判定」を足したもので，Python 版の decode と同じです。保存するCSVは Excel でそのまま開けます（BOM付き UTF-8）。</p>
+    <div class="msg" id="decmsg"></div>
+  </div>
+  <div class="panel hidden" id="decresult">
+    <div class="scroll"><table class="list" id="dectable"></table></div>
+  </div>
+</section>
+
+<!-- ================= 単発の確認 ================= -->
+<section class="tab" id="tab-check">
+  <div class="panel">
+    <h2>コード1つを確認</h2>
+    <div class="row">
+      <label style="flex:1">コード（URLでも可）<input type="text" class="wide" id="checkcode" placeholder="FC515-K7NN-D46S-CXM2-2NMC"></label>
+      <button class="btn primary" id="check" disabled>確認</button>
+    </div>
+    <div class="msg" id="checkmsg"></div>
+  </div>
+</section>
+</main>
+
+<script src="qrcode.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
