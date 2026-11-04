@@ -40,9 +40,8 @@ import urllib.parse
 
 KEY_FILE = "secret.key"
 COURSES_FILE = "courses.csv"  # 授業IDと授業名の対応表（id,name）
-FORM_URL = ("https://docs.google.com/forms/d/e/"
-            "1FAIpQLSdL53D36dkF71oCQuEt-iHL7rWX-MyWRqRe1L0xV4s-30LaHw/"
-            "viewform?usp=pp_url&entry.1091180216=")
+# 自分のフォームの事前入力URL（末尾が「entry.数字=」で終わるもの）を貼る（README「0. Googleフォームの準備」参照）
+FORM_URL = ""
 EPOCH = dt.date(2020, 1, 1)  # 日付フィールド 0（＝この日）は「日付なし」の印として使う
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford Base32（I,L,O,U なし）
 CODE_RE = re.compile(r"[0-9A-Za-z]{5}(?:-?[0-9A-Za-z]{4}){4}")
@@ -169,6 +168,10 @@ def write_cards(key, path, dates, start, count, course):
 
 
 def cmd_generate(a):
+    if not FORM_URL:
+        sys.exit("FORM_URL が設定されていません。attendance_code.py の FORM_URL に自分のフォームの事前入力URLを貼ってください。")
+    if not FORM_URL.endswith("="):
+        sys.exit("FORM_URL が「=」で終わっていません。末尾の仮の値（XXXX など）を消してください。")
     key = load_key()
     a.course = resolve_course(a.course)
     if a.no_date:

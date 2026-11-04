@@ -3,9 +3,6 @@
   "use strict";
   const C = window.AttendanceCore;
   const $ = id => document.getElementById(id);
-  const DEFAULT_FORM_URL = "https://docs.google.com/forms/d/e/"
-    + "1FAIpQLSdL53D36dkF71oCQuEt-iHL7rWX-MyWRqRe1L0xV4s-30LaHw/"
-    + "viewform?usp=pp_url&entry.1091180216=";
   const LS = { key: "attcard.key", courses: "attcard.courses", form: "attcard.formurl" };
 
   let key = null;        // Uint8Array
@@ -92,7 +89,7 @@
   });
 
   // ---------- フォームURL ----------
-  $("formurl").value = localStorage.getItem(LS.form) || DEFAULT_FORM_URL;
+  $("formurl").value = localStorage.getItem(LS.form) || "";
   $("formurl").addEventListener("change", e => localStorage.setItem(LS.form, e.target.value.trim()));
 
   // ---------- 授業ID表 ----------
@@ -163,6 +160,7 @@
   $("gen").addEventListener("click", () => {
     try {
       const formUrl = $("formurl").value.trim();
+      if (!formUrl) throw new Error("フォームURLが入っていません（「準備」タブで自分のフォームの事前入力URLを貼ってください）。");
       if (!/=$/.test(formUrl)) throw new Error("フォームURLが「=」で終わっていません（「準備」タブで確認してください）。");
       const count = Number($("gcount").value), start = Number($("gstart").value);
       if (!(Number.isInteger(count) && count >= 1)) throw new Error("枚数は1以上の整数にしてください。");
