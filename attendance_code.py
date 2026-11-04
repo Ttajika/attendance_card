@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""出席点カード用コードの生成・デコードツール
+"""出席カード用コードの生成・デコードツール
 
 コードの中身（13バイト → Crockford Base32 で21文字）:
     nonce(4B, 乱数) | 暗号化された [日付(2B) | カード番号(2B) | 授業ID(1B)] | 改ざん検知タグ(4B)
@@ -183,7 +183,7 @@ def cmd_check(a):
 
 
 def main():
-    p = argparse.ArgumentParser(description="出席点カードのコード生成・デコード")
+    p = argparse.ArgumentParser(description="出席カードのコード生成・デコード")
     sp = p.add_subparsers(dest="cmd", required=True)
     sp.add_parser("keygen", help="秘密鍵を作成")
     g = sp.add_parser("generate", help="カード用CSVを生成")

@@ -38,7 +38,7 @@
     let (code, url, date, number, course) = r
     let d = date.split("-")
     card_body[
-      *出席点記録カード*：下記のQRコードからアクセスし，フォームに記入してください．
+      *出席カード*：下記のQRコードからアクセスし，フォームに記入してください．
       #grid(
         columns: (auto, 1fr),
         column-gutter: 4mm,
