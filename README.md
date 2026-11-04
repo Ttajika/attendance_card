@@ -9,9 +9,13 @@ QRコード付きの出席カードを印刷し，Googleフォームの回答か
 | ファイル | 内容 |
 |---|---|
 | `attendance_code.py` | コードの生成・デコードを行う Python スクリプト（標準ライブラリのみで動作） |
-| `attendance_card.typ` | 印刷用カードの Typst テンプレート |
+| `attendance_card.typ` | 出席カード（授業日つき）の Typst テンプレート |
+| `nodate_card.typ` | 日付なしカード（発言カードなど）の Typst テンプレート |
+| `card_layout.typ` | 上の2つが共通で使うレイアウト（カード寸法・切断ガイド線・QRコード配置） |
 | `secret.key` | 秘密鍵（`keygen` で作成．**学生に配布しないこと**） |
+| `courses.csv` | 授業IDと授業名の対応表（`course add` で作成．任意） |
 | `cards_YYYYMMDD.csv` | `generate` で作るカード用データ（Typst が読み込む） |
+| `cards_nodate_開始-終了.csv` | `generate --no-date` で作る日付なしカード用データ |
 
 ## 必要なもの
 
@@ -59,6 +63,22 @@ python attendance_code.py keygen
 
 `secret.key` ができます．**必ずバックアップしてください．** 鍵をなくすと，配布済みのカードがデコードできなくなります．既に鍵がある場合は上書きしません．
 
+### 1'. 授業IDの登録（任意）
+
+授業IDに名前を付けておくと，カードに授業名が印刷され，デコード結果にも授業名の列が入ります．
+
+```
+python attendance_code.py course add "ミクロ経済学 出席" --id 3
+python attendance_code.py course add "ミクロ経済学 発言"
+python attendance_code.py course list
+```
+
+- 対応表は `courses.csv`（`id,name` の2列）に保存されます．Excel などで直接編集しても構いません．
+- `--id` を省略すると，登録済みの最大の番号の次が使われます．IDは 0〜255 です．
+- 登録した授業名は，`generate --course "ミクロ経済学 出席"` のように番号の代わりに指定できます．
+- **一度カードを配ったIDの授業名を変えても，デコード結果の授業名は新しい名前になります．** IDの使い回しはしないでください．
+- `courses.csv` も `.gitignore` の `*.csv` に該当するため，GitHub には上がりません．別の PC で使うときは，`secret.key` と一緒にコピーしてください．
+
 ### 2. カード用CSVの生成（授業日ごと）
 
 ```
@@ -80,11 +100,27 @@ python attendance_code.py generate --date 2026-10-07 --repeat 15
 | `--date` | 授業日（YYYY-MM-DD）．`--repeat` を使うときは初回の日付 | 今日 |
 | `--count` | 1回あたりの枚数 | 100 |
 | `--start` | 開始番号 | 1 |
-| `--course` | 授業ID（0〜255）．複数の授業で使い分けるとき用 | 0 |
+| `--course` | 授業ID（0〜255），または `courses.csv` に登録した授業名 | 0 |
 | `--repeat` | 何回分作るか | 1 |
 | `--interval` | 回と回の間隔（日数） | 7（毎週） |
 | `--merge` | 複数回分を1つのCSVにまとめる | なし |
 | `--out` | 出力ファイル名（1ファイルに出すときのみ） | `cards_YYYYMMDD.csv` |
+
+#### 日付なしカード（発言カードなど）
+
+授業日に関係なく使うカード（発言したときに渡す「発言カード」など）は，`--no-date` で作ります．
+
+```
+python attendance_code.py generate --no-date --count 100 --start 1 --course 2
+```
+
+`cards_nodate_1-100.csv` ができます．
+
+- 日付が入っていないので，いつ使っても有効です．いつ使われたかは，フォームの回答のタイムスタンプで分かります．
+- 同じカードの2回目以降の回答は `重複` になるので，1枚1回限りという扱いは出席カードと同じです．
+- 出席カードと区別できるよう，**`--course` に出席カードとは別の値**を付けておくことをおすすめします．同じ授業IDでも，日付の有無で別のカードとして扱われます．
+- 追加で刷るときは，`--start 101` のように番号を続けてください．同じ番号で作り直すと，デコード結果では同じカードとみなされます．
+- `--date`／`--repeat`／`--merge` とは一緒に使えません．
 
 ### 3. カードの印刷
 
@@ -96,7 +132,15 @@ typst compile attendance_card.typ cards_20261111.pdf --input csv=cards_20261111.
 
 `--input` を省略すると，`attendance_card.typ` の中の既定のファイル名（`cards_20261104.csv`）を読みます．`--merge` で作ったCSVを指定すれば，全回分のカードを1つのPDFにまとめて印刷できます．
 
-A4 1枚に2列×5段でカードが並び，切断用のガイド線が入ります．授業名の表示は `course_name` で変えられます．
+A4 1枚に2列×5段でカードが並び，切断用のガイド線が入ります．QRコードの右には，`courses.csv` に登録した授業名が印刷されます．登録がないときは，`.typ` ファイルの `course_name` の値が印刷されます．
+
+日付なしカードは `nodate_card.typ` で印刷します．
+
+```
+typst compile nodate_card.typ --input csv=cards_nodate_1-100.csv
+```
+
+カードの名前（既定は「発言カード」）は，`nodate_card.typ` の `card_name` で変えられます．カードの寸法やガイド線を変えるときは `card_layout.typ` を編集すると，両方のカードに反映されます．
 
 ### 4. 回答のデコード
 
@@ -110,9 +154,10 @@ python attendance_code.py decode フォーム回答.csv
 
 | 列 | 内容 |
 |---|---|
-| 日付 | カードの授業日 |
+| 日付 | カードの授業日（日付なしカードは `なし`） |
 | カードNo | カード番号 |
 | 授業ID | `--course` で指定した値 |
+| 授業名 | `courses.csv` に登録した授業名（未登録なら空欄） |
 | 判定 | `OK`／`不正コード`／`重複（n行目と同じカード）` |
 
 - コードが入った列は自動で見つけます．うまくいかないときは `--column 列名` で指定してください．
@@ -139,6 +184,8 @@ python attendance_code.py check FC515-K7NN-D46S-CXM2-2NMC
 ```
 nonce(4B, 乱数) | 暗号文(5B) = [日付(2B) | 番号(2B) | 授業ID(1B)] XOR 鍵ストリーム | タグ(4B)
 ```
+
+日付は 2020-01-01 からの日数です．日付なしカードは日数を 0 にしています（そのため 2020-01-01 当日の出席カードは作れません）．
 
 - 鍵ストリーム：`HMAC-SHA256(key, "enc" + nonce)` の先頭5バイト
 - タグ：`HMAC-SHA256(key, "tag" + nonce + 暗号文)` の先頭4バイト（改ざん検知．でたらめなコードが偶然通る確率は約43億分の1）
